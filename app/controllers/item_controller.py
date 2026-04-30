@@ -9,18 +9,21 @@ from app.schemas.item import (
 )
 from app.services.item_service import ItemService
 from app.utils.pagination import get_paginated_response
+from app.services.auth_service import AuthService
+from app.models.user import User
 
 router = APIRouter(prefix="/items", tags=["items"])
 
 @router.post("", response_model=ItemResponse, status_code=status.HTTP_201_CREATED)
 def create_item(
     item_data: ItemCreate,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(AuthService.get_current_user)
 ):
-    """Создать новый элемент"""
-    return ItemService.create_item(db, item_data)
+    """Создать новый элемент (только для аутентифицированных пользователей)"""
+    return ItemService.create_item(db, item_data, current_user.id)
 
-@router.get("", response_model=ItemListResponse)  # ← Было dict, стало ItemListResponse
+@router.get("", response_model=ItemListResponse)
 def get_items(
     pagination: PaginationParams = Depends(),
     db: Session = Depends(get_db)
@@ -38,10 +41,18 @@ def get_items(
 @router.put("/{item_id}", response_model=ItemResponse)
 def update_item_full(
     item_id: str,
-    item_data: ItemCreate,  # Полное обновление — все поля обязательны
-    db: Session = Depends(get_db)
+    item_data: ItemCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(AuthService.get_current_user)
 ):
-    """Полностью обновить элемент"""
+    """Полностью обновить элемент (только владелец)"""
+    # Проверяем владение
+    if not ItemService.check_ownership(db, item_id, current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to update this item"
+        )
+    
     updated = ItemService.update_item(db, item_id, item_data, full_update=True)
     if not updated:
         raise HTTPException(
@@ -53,10 +64,18 @@ def update_item_full(
 @router.patch("/{item_id}", response_model=ItemResponse)
 def update_item_partial(
     item_id: str,
-    item_data: ItemUpdate,  # Частичное — только переданные поля
-    db: Session = Depends(get_db)
+    item_data: ItemUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(AuthService.get_current_user)
 ):
-    """Частично обновить элемент"""
+    """Частично обновить элемент (только владелец)"""
+    # Проверяем владение
+    if not ItemService.check_ownership(db, item_id, current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to update this item"
+        )
+    
     updated = ItemService.update_item(db, item_id, item_data, full_update=False)
     if not updated:
         raise HTTPException(
@@ -68,9 +87,17 @@ def update_item_partial(
 @router.delete("/{item_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_item(
     item_id: str,
-    db: Session = Depends(get_db)
+    db: Session = Depends(get_db),
+    current_user: User = Depends(AuthService.get_current_user)
 ):
-    """Мягкое удаление элемента"""
+    """Мягкое удаление элемента (только владелец)"""
+    # Проверяем владение
+    if not ItemService.check_ownership(db, item_id, current_user.id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You don't have permission to delete this item"
+        )
+    
     success = ItemService.soft_delete_item(db, item_id)
     if not success:
         raise HTTPException(

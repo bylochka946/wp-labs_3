@@ -1,11 +1,13 @@
-from fastapi import FastAPI, Request
+from fastapi import FastAPI, Request, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.exceptions import RequestValidationError
+from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy.exc import IntegrityError
 import logging
 
 from app.database import engine, Base
 from app.controllers.item_controller import router as items_router
+from app.controllers.auth_controller import router as auth_router
 
 # Настройка логирования
 logging.basicConfig(level=logging.INFO)
@@ -13,11 +15,21 @@ logger = logging.getLogger(__name__)
 
 app = FastAPI(
     title="WP Labs API",
-    description="Лабораторная работа №2: REST API с PostgreSQL, ORM, Soft Delete и пагинацией",
+    description="Лабораторная работа №3: REST API с аутентификацией, авторизацией, OAuth 2.0 и JWT",
     version="1.0.0"
 )
 
-# Подключаем роутеры
+# Настраиваем CORS для работы с cookies (важно для фронтенда!)
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["http://localhost:3000", "http://localhost:4200", "http://127.0.0.1:3000", "http://127.0.0.1:4200"],  # Фронтенд адреса
+    allow_credentials=True,  # Разрешаем передачу cookies
+    allow_methods=["*"],  # Разрешаем все методы (GET, POST, PUT, DELETE)
+    allow_headers=["*"],  # Разрешаем все заголовки
+)
+
+# Подключаем роутеры (сначала auth, чтобы был доступен /health без аутентификации)
+app.include_router(auth_router)
 app.include_router(items_router)
 
 # Обработчики ошибок

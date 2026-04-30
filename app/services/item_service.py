@@ -2,6 +2,7 @@ from sqlalchemy.orm import Session
 from sqlalchemy import select, func
 from datetime import datetime
 from typing import List, Tuple, Optional
+from uuid import UUID
 
 from app.models.item import Item
 from app.schemas.item import ItemCreate, ItemUpdate, PaginationParams
@@ -9,9 +10,12 @@ from app.schemas.item import ItemCreate, ItemUpdate, PaginationParams
 class ItemService:
     
     @staticmethod
-    def create_item(db: Session, item_data: ItemCreate) -> Item:
-        """Создание нового элемента"""
-        db_item = Item(**item_data.model_dump())
+    def create_item(db: Session, item_data: ItemCreate, owner_id: UUID) -> Item:
+        """Создание нового элемента с привязкой к владельцу"""
+        db_item = Item(
+            **item_data.model_dump(),
+            owner_id=owner_id
+        )
         db.add(db_item)
         db.commit()
         db.refresh(db_item)
@@ -34,7 +38,6 @@ class ItemService:
     ) -> Tuple[List[Item], int]:
         """
         Получение списка с пагинацией.
-        Возвращает: (список элементов, общее количество НЕудалённых)
         """
         offset = (pagination.page - 1) * pagination.limit
         
@@ -91,3 +94,14 @@ class ItemService:
         db_item.mark_as_deleted()
         db.commit()
         return True
+    
+    @staticmethod
+    def check_ownership(db: Session, item_id: str, owner_id: UUID) -> bool:
+        """
+        Проверка владения элементом.
+        """
+        db_item = ItemService.get_item_by_id(db, item_id)
+        if not db_item:
+            return False
+        
+        return db_item.owner_id == owner_id

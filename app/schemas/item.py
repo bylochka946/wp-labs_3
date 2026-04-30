@@ -22,6 +22,7 @@ class ItemUpdate(BaseModel):
 # Для ответа (включает системные поля)
 class ItemResponse(ItemBase):
     id: UUID
+    owner_id: UUID
     created_at: datetime
     updated_at: datetime
     deleted_at: Optional[datetime] = None

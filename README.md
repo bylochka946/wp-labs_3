@@ -1,113 +1,117 @@
 # Лабораторная работа №2
-## Тема: Проектирование и реализация RESTful API
+## Тема: Авторизация и аутентификация (JWT, OAuth2, Cookies)
 
-### Запуск приложения
+### Краткое описание проекта
 
-#### 1. Клонирование репозитория
-```bash
-git clone https://github.com/bylochka946/wp-labs.git
-cd wp-labs
-```
+Добавлена система аутентификации и авторизации:
+- JWT токены (Access/Refresh) с передачей через HttpOnly cookies
+- Безопасное хранение паролей (bcrypt с уникальной солью)
+- OAuth 2.0 через российские провайдеры (Yandex, VK)
+- Управление сессиями (отзыв токенов, logout all)
+- Защита ресурсов с проверкой владения
+- Сброс пароля через email-токен
+- Технологии: Python 3.11, FastAPI, SQLAlchemy, Alembic, PostgreSQL 16, Docker
 
-#### 2. Настройка окружения
+### Пример файла переменных окружения (.env.example)
 
-**Windows**
-```bash 
-copy .env.example .env
-```
-
-**Linux/macOS**
-```bash 
-cp .env.example .env
-```
-
-#### 3. Запуск через Docker Compose
-```bash 
-docker-compose up --build
-```
-Приложение доступно: http://localhost:4200
-
-#### 4. Проверка
-- **Health Check:** http://localhost:4200/health
-- **API Docs:** http://localhost:4200/docs
-
-#### 5. Остановка
-```bash 
-docker-compose down
-```
-
-### Переменные окружения
-Файл .env.example:
-```env
+# Database Configuration (PostgreSQL)
 DB_USER=student
 DB_PASSWORD=student_secure_password
 DB_NAME=wp_labs
 DB_HOST=localhost
 DB_PORT=5432
-```
 
-- **DB_USER**	- Пользователь БД (по умолчанию student)
-- **DB_PASSWORD**	- Пароль БД (по умолчанию student_secure_password)
-- **DB_NAME**	- Имя базы данных (по умолчанию wp_labs)
-- **DB_HOST**	- Хост БД (по умолчанию localhost)
-- **DB_PORT** - Порт БД (по умолчанию 5432)
+# JWT Configuration
+# Секретные ключи для подписи JWT токенов
+JWT_ACCESS_SECRET=super_secret_access_key_change_in_prod
+JWT_REFRESH_SECRET=super_secret_refresh_key_change_in_prod
 
-### API Документация
-Базовый URL: http://localhost:4200
+# Время жизни токенов в минутах
+JWT_ACCESS_EXPIRATION=15          # 15 минут
+JWT_REFRESH_EXPIRATION=10080      # 7 дней 
 
-#### Эндпоинты
-- **GET** -	/health	(Проверка работоспособности)
-- **POST** -	/items	(Создать элемент)
-- **GET** - /items	(Получить список элементов)
-- **PUT** - /items/{id}	(Полное обновление элемента)
-- **PATCH** - /items/{id} (Частичное обновление элемента)
-- **DELETE** - /items/{id}	(Мягкое удаление элемента)
+# OAuth Yandex Configuration
+# https://oauth.yandex.ru/
+YANDEX_CLIENT_ID=your_yandex_client_id
+YANDEX_CLIENT_SECRET=your_yandex_client_secret
+YANDEX_REDIRECT_URI=http://localhost:4200/auth/oauth/yandex/callback
 
-#### Параметры пагинации (для GET /items)
-- **page**(integer)	- Номер страницы (от 1, по умолчанию - 1)
-- **limit**(integer) - Записей на странице (1-100, по умолчанию - 10)
 
-#### Пример запросов
-**POST /items** - Создание элемента:
-```json
-{
-  "name": "Название",
-  "description": "Описание",
-  "status": "active"
-}
-```
+# OAuth VK Configuration
+# https://dev.vk.com/
+VK_CLIENT_ID=your_vk_client_id
+VK_CLIENT_SECRET=your_vk_client_secret
+VK_REDIRECT_URI=http://localhost:4200/auth/oauth/vk/callback
 
-**GET /items?page=1&limit=10** - Ответ:
-```json
-{
-  "data": [...],
-  "meta": {
-    "total": 50,
-    "page": 1,
-    "limit": 10,
-    "totalPages": 5
-  }
-}
-```
+#### Примера запросов
 
-#### Обработка ошибок
-- **400** - Неверный формат данных
-- **404** -	Ресурс не найден (или удален)
-- **409** -	Конфликт данных
-- **500** -	Внутренняя ошибка сервера
-
-### Миграции базы данных
-#### Автоматический запуск
-Миграции запускаются автоматически при старте контейнера.
-
-#### Ручной запуск
+POST /auth/register - Регистрация
 ```bash
-# Применить все миграции
-docker-compose run --rm app alembic upgrade head
-
-# Создать новую миграцию
-docker-compose run --rm app alembic revision --autogenerate -m "описание"
-
-# Откатить последнюю миграцию
-docker-compose run --rm app alembic downgrade -1
+curl -X POST http://localhost:4200/auth/register ^
+  -H "Content-Type: application/json" ^
+  -d "{\"email\":\"test1@example.com\",\"password\":\"TestPass1234\"}" ^
+  -c cookies.txt ^
+  -v
 ```
+
+POST /auth/login - Вход 
+```bash
+curl -X POST http://localhost:4200/auth/login ^
+  -H "Content-Type: application/json" ^
+  -d "{\"email\":\"test1@example.com\",\"password\":\"TestPass1234\"}" ^
+  -c cookies.txt ^
+  -v
+```
+
+GET /auth/whoami - Проверка авторизации
+```bash
+curl -X GET http://localhost:4200/auth/whoami ^
+  -b cookies.txt ^
+  -v
+```
+
+POST /auth/refresh - Обновление токенов
+```bash
+curl -X POST http://localhost:4200/auth/refresh ^
+  -b cookies.txt ^
+  -c cookies.txt ^
+  -v
+```
+
+POST /auth/logout - Завершение текущей сессии
+```bash
+curl -X POST http://localhost:4200/auth/logout ^
+  -b cookies.txt ^
+  -c cookies.txt ^
+  -v
+```
+
+POST /auth/logout-all - Завершение всех сессий пользователя
+```bash
+curl -X POST http://localhost:4200/auth/logout-all ^
+  -b cookies.txt ^
+  -c cookies.txt ^
+  -v
+```
+
+POST /auth/forgot-password - Запрос сброса пароля
+```bash
+curl -X POST http://localhost:4200/auth/forgot-password ^
+  -H "Content-Type: application/json" ^
+  -d "{\"email\":\"test1@example.com\"}" ^
+  -v
+```
+
+️POST /auth/reset-password - Установка нового пароля
+```bash
+curl -X POST http://localhost:4200/auth/reset-password ^
+  -H "Content-Type: application/json" ^
+  -d "{\"token\":\"YOUR_RESET_TOKEN\",\"new_password\":\"NewPass456\"}" ^
+  -v
+```
+
+GET /auth/oauth/yandex - OAuth инициация
+```bash
+curl -X GET http://localhost:4200/auth/oauth/yandex ^
+```
+
