@@ -24,6 +24,9 @@ services:
     container_name: wp_labs_app
     restart: unless-stopped
     environment:
+      # Application Environment
+      APP_ENV: ${APP_ENV}
+      # Database Configuration
       DB_HOST: postgres
       DB_PORT: 5432
       DB_USER: ${DB_USER}
